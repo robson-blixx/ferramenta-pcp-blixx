@@ -1,4 +1,6 @@
 /* Somente o endereço público do serviço fica no GitHub. A chave da operação fica no navegador. */
+const painelAccess=new URLSearchParams(location.hash.slice(1)).get('acesso');
+if(painelAccess&&/^[a-f0-9]{64}$/.test(painelAccess))localStorage.setItem('pcp-admin-key',painelAccess);
 const PCP={endpoint:'https://script.google.com/macros/s/AKfycbziMmz_b46Ab17idxXEohhm_bU9hogFKYNKtXGpZhwPdJgzggeyoDFr0iHVd5cVzA/exec',key:localStorage.getItem('pcp-admin-key')||'',busy:false};
 function pcpRead(params){return new Promise((resolve,reject)=>{const cb='pcp_'+crypto.randomUUID().replace(/-/g,'');const script=document.createElement('script');let timer;function clean(){clearTimeout(timer);script.remove();delete window[cb]}window[cb]=data=>{clean();data.ok?resolve(data):reject(Error(data.error||'Falha no serviço.'))};script.onerror=()=>{clean();reject(Error('Sem conexão com o registro de coletas.'))};timer=setTimeout(()=>{clean();reject(Error('O serviço demorou para responder. Tente novamente.'))},25000);const url=new URL(PCP.endpoint);Object.entries({...params,callback:cb,_:Date.now()}).forEach(([k,v])=>url.searchParams.set(k,v));script.src=url.href;document.head.append(script)})}
 async function pcpPost(payload){await fetch(PCP.endpoint,{method:'POST',mode:'no-cors',body:new URLSearchParams({payload:JSON.stringify(payload)}),credentials:'omit'})}
