@@ -45,12 +45,20 @@ function previewEvidence(url,alt,trigger){
   label.setAttribute('role','status');label.style.cssText='min-width:48px;text-align:center;font-size:14px';
   close.textContent='Fechar foto · Esc';close.style.marginLeft='auto';close.onclick=()=>photoPreview.close();
   toolbar.append(minus,label,plus,close);
-  const viewport=document.createElement('div');viewport.style.cssText='width:100%;height:50vh;max-height:440px;overflow:auto;border-radius:6px;background:#f1f5f2';viewport.setAttribute('aria-label','Área da foto com zoom');
-  const image=document.createElement('img');image.src=url;image.alt=alt;image.style.cssText='display:block;max-width:none;max-height:none;object-fit:fill';viewport.append(image);
-  let zoom=1,baseWidth=0,baseHeight=0;
-  function renderZoom(){image.style.width=(baseWidth*zoom)+'px';image.style.height=(baseHeight*zoom)+'px';label.textContent=Math.round(zoom*100)+'%';minus.disabled=zoom<=0.5;plus.disabled=zoom>=4;}
+  const viewport=document.createElement('div');viewport.style.cssText='width:100%;height:50vh;max-height:440px;overflow:auto;border-radius:6px;background:#f1f5f2;user-select:none';viewport.setAttribute('aria-label','Área da foto com zoom');
+  const image=document.createElement('img');image.src=url;image.alt=alt;image.draggable=false;image.style.cssText='display:block;max-width:none;max-height:none;object-fit:fill;user-select:none';viewport.append(image);
+  let zoom=1,baseWidth=0,baseHeight=0,drag=null,suppressDoubleClick=false;
+  function endDrag(){if(!drag)return;const id=drag.id;drag=null;if(viewport.hasPointerCapture(id))viewport.releasePointerCapture(id);updateCursor();}
+  function updateCursor(){viewport.style.cursor=zoom>1?'grab':'zoom-in';viewport.style.touchAction=zoom>1?'none':'auto';}
+  function renderZoom(){image.style.width=(baseWidth*zoom)+'px';image.style.height=(baseHeight*zoom)+'px';label.textContent=Math.round(zoom*100)+'%';minus.disabled=zoom<=0.5;plus.disabled=zoom>=4;updateCursor();}
   function fit(){if(!image.naturalWidth)return;const scale=Math.min(viewport.clientWidth/image.naturalWidth,viewport.clientHeight/image.naturalHeight);baseWidth=image.naturalWidth*scale;baseHeight=image.naturalHeight*scale;renderZoom();}
-  function changeZoom(delta){zoom=Math.max(0.5,Math.min(4,Math.round((zoom+delta)*100)/100));renderZoom();}
+  function setZoom(value,x=viewport.clientWidth/2,y=viewport.clientHeight/2){endDrag();const previous=zoom,pointX=(viewport.scrollLeft+x)/previous,pointY=(viewport.scrollTop+y)/previous;zoom=Math.max(0.5,Math.min(4,Math.round(value*100)/100));renderZoom();viewport.scrollLeft=pointX*zoom-x;viewport.scrollTop=pointY*zoom-y;}
+  function changeZoom(delta){setZoom(zoom+delta);}
+  viewport.ondblclick=e=>{e.preventDefault();if(suppressDoubleClick)return;const rect=viewport.getBoundingClientRect();setZoom(zoom>1?1:2,e.clientX-rect.left,e.clientY-rect.top);};
+  viewport.onpointerdown=e=>{if(!e.isPrimary||e.button!==0)return;suppressDoubleClick=false;if(zoom<=1)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY,left:viewport.scrollLeft,top:viewport.scrollTop,moved:false};viewport.setPointerCapture(e.pointerId);};
+  viewport.onpointermove=e=>{if(!drag||drag.id!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(!drag.moved&&Math.hypot(dx,dy)<4)return;drag.moved=true;suppressDoubleClick=true;e.preventDefault();viewport.style.cursor='grabbing';viewport.scrollLeft=drag.left-dx;viewport.scrollTop=drag.top-dy;};
+  viewport.onpointerup=endDrag;viewport.onpointercancel=endDrag;viewport.onlostpointercapture=endDrag;image.ondragstart=e=>e.preventDefault();
+  photoPreview.addEventListener('close',endDrag,{once:true});
   minus.onclick=()=>changeZoom(-0.25);plus.onclick=()=>changeZoom(0.25);image.onload=fit;
   photoPreview.replaceChildren(toolbar,viewport);photoPreview.showModal();fit();renderZoom();
 }
